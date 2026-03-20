@@ -2,27 +2,28 @@ import { useEffect, useState, useCallback } from 'react';
 import { productsApi, categoriesApi, suppliersApi } from '../services/api';
 import { Modal, PageHeader, EmptyState, Spinner, SearchInput, Pagination } from '../components/UI';
 import { useAuth } from '../context/AppContext';
-import { Plus, Edit2, Trash2, Package, AlertTriangle, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, AlertTriangle, Filter, QrCode, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const EMPTY = { name:'', sku:'', description:'', price:'', quantity:'', reorderLevel:10, categoryId:'', supplierId:'', isActive:true };
 
 export default function Products() {
   const { isAdmin } = useAuth();
-  const [products, setProducts]     = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [suppliers, setSuppliers]   = useState([]);
-  const [total, setTotal]           = useState(0);
-  const [page, setPage]             = useState(1);
-  const [search, setSearch]         = useState('');
-  const [catFilter, setCatFilter]   = useState('');
-  const [lowStock, setLowStock]     = useState(false);
-  const [loading, setLoading]       = useState(true);
-  const [modal, setModal]           = useState(null);
-  const [selected, setSelected]     = useState(null);
-  const [form, setForm]             = useState(EMPTY);
-  const [saving, setSaving]         = useState(false);
+  const [products, setProducts]       = useState([]);
+  const [categories, setCategories]   = useState([]);
+  const [suppliers, setSuppliers]     = useState([]);
+  const [total, setTotal]             = useState(0);
+  const [page, setPage]               = useState(1);
+  const [search, setSearch]           = useState('');
+  const [catFilter, setCatFilter]     = useState('');
+  const [lowStock, setLowStock]       = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [modal, setModal]             = useState(null);
+  const [selected, setSelected]       = useState(null);
+  const [form, setForm]               = useState(EMPTY);
+  const [saving, setSaving]           = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [qrModal, setQrModal]         = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,9 +39,26 @@ export default function Products() {
     suppliersApi.getAll().then(r => setSuppliers(r.data));
   }, []);
 
-  const openAdd  = () => { setForm(EMPTY); setModal('add'); };
-  const openEdit = (p) => { setSelected(p); setForm({ name:p.name, sku:p.sku||'', description:p.description||'', price:p.price, quantity:p.quantity, reorderLevel:p.reorderLevel, categoryId:p.categoryId, supplierId:p.supplierId||'', isActive:p.isActive }); setModal('edit'); };
+  const openAdd    = () => { setForm(EMPTY); setModal('add'); };
+  const openEdit   = (p) => { setSelected(p); setForm({ name:p.name, sku:p.sku||'', description:p.description||'', price:p.price, quantity:p.quantity, reorderLevel:p.reorderLevel, categoryId:p.categoryId, supplierId:p.supplierId||'', isActive:p.isActive }); setModal('edit'); };
   const closeModal = () => { setModal(null); setSelected(null); };
+
+  const openQR = async (p) => {
+    try {
+      const res = await productsApi.getQR(p.id);
+      setQrModal({ name: p.name, sku: p.sku, qrCode: res.data.qrCode });
+    } catch {
+      toast.error('Failed to generate QR code');
+    }
+  };
+
+  const downloadQR = () => {
+    if (!qrModal) return;
+    const a = document.createElement('a');
+    a.href = qrModal.qrCode;
+    a.download = `QR_${qrModal.name.replace(/\s+/g, '_')}.png`;
+    a.click();
+  };
 
   const handleSave = async (e) => {
     e.preventDefault(); setSaving(true);
@@ -77,7 +95,8 @@ export default function Products() {
       {/* Search + filter row */}
       <div className="flex gap-2 mb-4">
         <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search products..." />
-        <button onClick={() => setShowFilters(!showFilters)}
+        <button
+          onClick={() => setShowFilters(!showFilters)}
           className={`icon-btn border flex-shrink-0 ${showFilters ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-400' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
           <Filter size={16} />
         </button>
@@ -114,7 +133,7 @@ export default function Products() {
                   <th className="table-header">Price</th>
                   <th className="table-header">Stock</th>
                   <th className="table-header">Status</th>
-                  {isAdmin && <th className="table-header">Actions</th>}
+                  <th className="table-header">Actions</th>
                 </tr></thead>
                 <tbody>
                   {products.map(p => (
@@ -125,7 +144,9 @@ export default function Products() {
                           {p.supplierName && <p className="text-xs text-gray-400 mt-0.5">{p.supplierName}</p>}
                         </div>
                       </td>
-                      <td className="table-cell"><span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-md">{p.sku || '—'}</span></td>
+                      <td className="table-cell">
+                        <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-md">{p.sku || '—'}</span>
+                      </td>
                       <td className="table-cell"><span className="badge-info">{p.categoryName}</span></td>
                       <td className="table-cell font-semibold text-gray-900 dark:text-gray-100">₹{Number(p.price).toLocaleString('en-IN')}</td>
                       <td className="table-cell">
@@ -138,14 +159,23 @@ export default function Products() {
                       <td className="table-cell">
                         {p.isActive ? <span className="badge-success">Active</span> : <span className="badge-gray">Archived</span>}
                       </td>
-                      {isAdmin && (
-                        <td className="table-cell">
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => openEdit(p)} className="icon-btn hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"><Edit2 size={14}/></button>
-                            <button onClick={() => handleDelete(p)} className="icon-btn hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"><Trash2 size={14}/></button>
-                          </div>
-                        </td>
-                      )}
+                      <td className="table-cell">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openQR(p)}
+                            className="icon-btn hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400"
+                            title="View QR Code"
+                          >
+                            <QrCode size={14}/>
+                          </button>
+                          {isAdmin && (
+                            <>
+                              <button onClick={() => openEdit(p)} className="icon-btn hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600" title="Edit"><Edit2 size={14}/></button>
+                              <button onClick={() => handleDelete(p)} className="icon-btn hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500" title="Archive"><Trash2 size={14}/></button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -175,12 +205,15 @@ export default function Products() {
                           Stock: {p.quantity}
                         </span>
                       </div>
-                      {isAdmin && (
-                        <div className="flex gap-1">
-                          <button onClick={() => openEdit(p)} className="icon-btn hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"><Edit2 size={15}/></button>
-                          <button onClick={() => handleDelete(p)} className="icon-btn hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"><Trash2 size={15}/></button>
-                        </div>
-                      )}
+                      <div className="flex gap-1">
+                        <button onClick={() => openQR(p)} className="icon-btn hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600" title="QR Code"><QrCode size={15}/></button>
+                        {isAdmin && (
+                          <>
+                            <button onClick={() => openEdit(p)} className="icon-btn hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"><Edit2 size={15}/></button>
+                            <button onClick={() => handleDelete(p)} className="icon-btn hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"><Trash2 size={15}/></button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -251,6 +284,30 @@ export default function Products() {
               <button type="button" onClick={closeModal} className="btn-secondary">Cancel</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* QR Code Modal */}
+      {qrModal && (
+        <Modal title="Product QR Code" onClose={() => setQrModal(null)} size="sm">
+          <div className="flex flex-col items-center gap-5 py-2">
+            <div className="p-4 bg-white rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+              <img src={qrModal.qrCode} alt="QR Code" className="w-48 h-48" />
+            </div>
+            <div className="text-center">
+              <p className="text-base font-bold text-gray-900 dark:text-white">{qrModal.name}</p>
+              {qrModal.sku && (
+                <span className="text-xs text-gray-400 font-mono mt-1 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full inline-block">
+                  SKU: {qrModal.sku}
+                </span>
+              )}
+              <p className="text-xs text-gray-400 mt-2">Scan this code to identify the product</p>
+            </div>
+            <button onClick={downloadQR} className="btn-primary w-full justify-center">
+              <Download size={16} />
+              Download QR Code (.png)
+            </button>
+          </div>
         </Modal>
       )}
     </div>
