@@ -1,4 +1,4 @@
-# InvenTrack — Industry-Grade Inventory Management System v2
+# InvenTrack — Industry-Grade Inventory Management System 
 
 Full-stack: ASP.NET Core .NET 9 + React.js + MS SQL Server (LocalDB)
 
