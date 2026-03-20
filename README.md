@@ -13,6 +13,7 @@ dotnet ef database update
 dotnet run
 # API: http://localhost:5000
 # Swagger: http://localhost:5000/swagger
+# If Any of these does not work please download the zip and run on your system
 ```
 
 ### Frontend
