@@ -2,28 +2,30 @@ import { useEffect, useState, useCallback } from 'react';
 import { productsApi, categoriesApi, suppliersApi } from '../services/api';
 import { Modal, PageHeader, EmptyState, Spinner, SearchInput, Pagination } from '../components/UI';
 import { useAuth } from '../context/AppContext';
-import { Plus, Edit2, Trash2, Package, AlertTriangle, Filter, QrCode, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, AlertTriangle, Filter, QrCode, Download, Scan } from 'lucide-react';
+import JsBarcode from 'jsbarcode';
 import toast from 'react-hot-toast';
 
 const EMPTY = { name:'', sku:'', description:'', price:'', quantity:'', reorderLevel:10, categoryId:'', supplierId:'', isActive:true };
 
 export default function Products() {
   const { isAdmin } = useAuth();
-  const [products, setProducts]       = useState([]);
-  const [categories, setCategories]   = useState([]);
-  const [suppliers, setSuppliers]     = useState([]);
-  const [total, setTotal]             = useState(0);
-  const [page, setPage]               = useState(1);
-  const [search, setSearch]           = useState('');
-  const [catFilter, setCatFilter]     = useState('');
-  const [lowStock, setLowStock]       = useState(false);
-  const [loading, setLoading]         = useState(true);
-  const [modal, setModal]             = useState(null);
-  const [selected, setSelected]       = useState(null);
-  const [form, setForm]               = useState(EMPTY);
-  const [saving, setSaving]           = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [qrModal, setQrModal]         = useState(null);
+  const [products, setProducts]         = useState([]);
+  const [categories, setCategories]     = useState([]);
+  const [suppliers, setSuppliers]       = useState([]);
+  const [total, setTotal]               = useState(0);
+  const [page, setPage]                 = useState(1);
+  const [search, setSearch]             = useState('');
+  const [catFilter, setCatFilter]       = useState('');
+  const [lowStock, setLowStock]         = useState(false);
+  const [loading, setLoading]           = useState(true);
+  const [modal, setModal]               = useState(null);
+  const [selected, setSelected]         = useState(null);
+  const [form, setForm]                 = useState(EMPTY);
+  const [saving, setSaving]             = useState(false);
+  const [showFilters, setShowFilters]   = useState(false);
+  const [qrModal, setQrModal]           = useState(null);
+  const [barcodeModal, setBarcodeModal] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,6 +41,28 @@ export default function Products() {
     suppliersApi.getAll().then(r => setSuppliers(r.data));
   }, []);
 
+  // Render barcode when modal opens
+  useEffect(() => {
+    if (barcodeModal) {
+      setTimeout(() => {
+        try {
+          JsBarcode('#barcode-svg', barcodeModal.value, {
+            format: 'CODE128',
+            width: 2,
+            height: 80,
+            displayValue: true,
+            fontSize: 14,
+            margin: 10,
+            background: '#ffffff',
+            lineColor: '#000000',
+          });
+        } catch {
+          toast.error('Could not generate barcode for this value');
+        }
+      }, 100);
+    }
+  }, [barcodeModal]);
+
   const openAdd    = () => { setForm(EMPTY); setModal('add'); };
   const openEdit   = (p) => { setSelected(p); setForm({ name:p.name, sku:p.sku||'', description:p.description||'', price:p.price, quantity:p.quantity, reorderLevel:p.reorderLevel, categoryId:p.categoryId, supplierId:p.supplierId||'', isActive:p.isActive }); setModal('edit'); };
   const closeModal = () => { setModal(null); setSelected(null); };
@@ -52,12 +76,39 @@ export default function Products() {
     }
   };
 
+  const openBarcode = (p) => {
+    // Use SKU if available, otherwise fall back to product ID
+    const value = p.sku || String(p.id);
+    setBarcodeModal({ name: p.name, sku: p.sku, value });
+  };
+
   const downloadQR = () => {
     if (!qrModal) return;
     const a = document.createElement('a');
     a.href = qrModal.qrCode;
     a.download = `QR_${qrModal.name.replace(/\s+/g, '_')}.png`;
     a.click();
+  };
+
+  const downloadBarcode = () => {
+    const svg = document.getElementById('barcode-svg');
+    if (!svg) return;
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas  = document.createElement('canvas');
+    const ctx     = canvas.getContext('2d');
+    const img     = new Image();
+    img.onload = () => {
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      const a = document.createElement('a');
+      a.download = `Barcode_${barcodeModal.name.replace(/\s+/g, '_')}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
   const handleSave = async (e) => {
@@ -79,6 +130,36 @@ export default function Products() {
 
   const f = (v) => setForm(prev => ({ ...prev, ...v }));
 
+  // Action buttons — reused in desktop and mobile
+  const ActionButtons = ({ p, size = 14 }) => (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => openQR(p)}
+        className="icon-btn hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400"
+        title="View QR Code"
+      >
+        <QrCode size={size} />
+      </button>
+      <button
+        onClick={() => openBarcode(p)}
+        className="icon-btn hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400"
+        title="View Barcode"
+      >
+        <Scan size={size} />
+      </button>
+      {isAdmin && (
+        <>
+          <button onClick={() => openEdit(p)} className="icon-btn hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600" title="Edit">
+            <Edit2 size={size} />
+          </button>
+          <button onClick={() => handleDelete(p)} className="icon-btn hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500" title="Archive">
+            <Trash2 size={size} />
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div>
       <PageHeader
@@ -97,7 +178,10 @@ export default function Products() {
         <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search products..." />
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`icon-btn border flex-shrink-0 ${showFilters ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-400' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
+          className={`icon-btn border flex-shrink-0 ${showFilters
+            ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-400'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
+        >
           <Filter size={16} />
         </button>
       </div>
@@ -160,21 +244,7 @@ export default function Products() {
                         {p.isActive ? <span className="badge-success">Active</span> : <span className="badge-gray">Archived</span>}
                       </td>
                       <td className="table-cell">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => openQR(p)}
-                            className="icon-btn hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400"
-                            title="View QR Code"
-                          >
-                            <QrCode size={14}/>
-                          </button>
-                          {isAdmin && (
-                            <>
-                              <button onClick={() => openEdit(p)} className="icon-btn hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600" title="Edit"><Edit2 size={14}/></button>
-                              <button onClick={() => handleDelete(p)} className="icon-btn hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500" title="Archive"><Trash2 size={14}/></button>
-                            </>
-                          )}
-                        </div>
+                        <ActionButtons p={p} size={14} />
                       </td>
                     </tr>
                   ))}
@@ -205,15 +275,7 @@ export default function Products() {
                           Stock: {p.quantity}
                         </span>
                       </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => openQR(p)} className="icon-btn hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600" title="QR Code"><QrCode size={15}/></button>
-                        {isAdmin && (
-                          <>
-                            <button onClick={() => openEdit(p)} className="icon-btn hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"><Edit2 size={15}/></button>
-                            <button onClick={() => handleDelete(p)} className="icon-btn hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"><Trash2 size={15}/></button>
-                          </>
-                        )}
-                      </div>
+                      <ActionButtons p={p} size={15} />
                     </div>
                   </div>
                 </div>
@@ -225,7 +287,7 @@ export default function Products() {
         )}
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* ── Add/Edit Modal ─────────────────────────────── */}
       {modal && (
         <Modal title={modal === 'add' ? 'Add Product' : 'Edit Product'} onClose={closeModal} size="lg">
           <form onSubmit={handleSave} className="space-y-4">
@@ -287,7 +349,7 @@ export default function Products() {
         </Modal>
       )}
 
-      {/* QR Code Modal */}
+      {/* ── QR Code Modal ──────────────────────────────── */}
       {qrModal && (
         <Modal title="Product QR Code" onClose={() => setQrModal(null)} size="sm">
           <div className="flex flex-col items-center gap-5 py-2">
@@ -301,11 +363,36 @@ export default function Products() {
                   SKU: {qrModal.sku}
                 </span>
               )}
-              <p className="text-xs text-gray-400 mt-2">Scan this code to identify the product</p>
+              <p className="text-xs text-gray-400 mt-2">Scan to identify this product</p>
             </div>
             <button onClick={downloadQR} className="btn-primary w-full justify-center">
               <Download size={16} />
               Download QR Code (.png)
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Barcode Modal ───────────────────────────────── */}
+      {barcodeModal && (
+        <Modal title="Product Barcode" onClose={() => setBarcodeModal(null)} size="sm">
+          <div className="flex flex-col items-center gap-5 py-2">
+            <div className="p-4 bg-white rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm w-full flex items-center justify-center overflow-hidden">
+              <svg id="barcode-svg"></svg>
+            </div>
+            <div className="text-center">
+              <p className="text-base font-bold text-gray-900 dark:text-white">{barcodeModal.name}</p>
+              <span className="text-xs text-gray-400 font-mono mt-1 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full inline-block">
+                {barcodeModal.value}
+              </span>
+              {!barcodeModal.sku && (
+                <p className="text-xs text-amber-500 mt-2">No SKU set — using product ID as barcode value</p>
+              )}
+              <p className="text-xs text-gray-400 mt-1">Scan to identify this product</p>
+            </div>
+            <button onClick={downloadBarcode} className="btn-primary w-full justify-center">
+              <Download size={16} />
+              Download Barcode (.png)
             </button>
           </div>
         </Modal>
