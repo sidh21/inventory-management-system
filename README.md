@@ -1,6 +1,16 @@
-# InvenTrack — Industry-Grade Inventory Management System 
+# InvenTrack — Industry-Grade Inventory Management System
 
-Full-stack: ASP.NET Core .NET 9 + React.js + MS SQL Server (LocalDB)
+> Full-stack: ASP.NET Core .NET 9 + React.js + MS SQL Server (LocalDB)
+
+## Screenshots
+
+### Login Page
+![Login Page](./login.png)
+
+### Dashboard
+![Dashboard](./dashboard.png)
+
+---
 
 ## Quick Start
 
@@ -13,7 +23,6 @@ dotnet ef database update
 dotnet run
 # API: http://localhost:5000
 # Swagger: http://localhost:5000/swagger
-# If Any of these does not work please download the zip and run on your system
 ```
 
 ### Frontend
@@ -24,9 +33,12 @@ npm run dev
 # App: http://localhost:5173
 ```
 
-## Login
-- Email: admin@inventory.com
-- Password: Admin@123
+## Login Credentials
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@inventory.com | Admin@123 |
+
+---
 
 ## Features
 
@@ -54,6 +66,17 @@ npm run dev
 - Mobile-first responsive (bottom tab nav on mobile)
 - Role-based route protection
 
+---
+
 ## Tech Stack
-Backend: C# · ASP.NET Core .NET 9 · EF Core · SQL Server · JWT · BCrypt · Serilog · ClosedXML · QRCoder · FluentValidation
-Frontend: React 18 · Vite · Tailwind CSS · Axios · React Router · Recharts · Lucide Icons
+
+| Layer | Technologies |
+|-------|-------------|
+| Backend | C# · ASP.NET Core .NET 9 · EF Core · SQL Server · JWT · BCrypt · Serilog · ClosedXML · QRCoder · FluentValidation |
+| Frontend | React 18 · Vite · Tailwind CSS · Axios · React Router · Recharts · Lucide Icons |
+
+---
+
+## Author
+**Siddhesh Vetal** — .NET Backend Developer
+[LinkedIn](https://linkedin.com/in/siddhesh-vetal) · [GitHub](https://github.com/sidh21)
